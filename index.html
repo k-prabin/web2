@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Specific Times</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+    <h2>Upload Excel/CSV File</h2>
+    <input type="file" id="fileInput">
+    <br><br>
+    
+    <h3>Enter Two Specific Times (Format: HH:MM AM/PM)</h3>
+    <label>Time 1: <input type="text" id="time1" value="09:15 AM"></label>
+    <label>Time 2: <input type="text" id="time2" value="10:00 AM"></label><br><br>
+
+    <button onclick="processFile()">Upload & Compare</button>
+
+    <h3>Stocks Present at Time 1 but NOT at Time 2</h3>
+    <table border="1">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Stock Symbol</th>
+            </tr>
+        </thead>
+        <tbody id="resultTable">
+            <tr><td colspan="2">No data yet.</td></tr>
+        </tbody>
+    </table>
+
+    <script>
+        function processFile() {
+            const fileInput = document.getElementById("fileInput").files[0];
+            if (!fileInput) {
+                alert("Please upload a file!");
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function (event) {
+                const fileContent = event.target.result;
+                if (fileInput.name.endsWith(".csv")) {
+                    Papa.parse(fileContent, {
+                        header: true,
+                        skipEmptyLines: true,
+                        complete: function (results) {
+                            processData(results.data);
+                        }
+                    });
+                } else if (fileInput.name.endsWith(".xlsx")) {
+                    const workbook = XLSX.read(fileContent, { type: "binary" });
+                    const sheetName = workbook.SheetNames[0];
+                    const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+                    processData(jsonData);
+                } else {
+                    alert("Only CSV or Excel files are allowed.");
+                }
+            };
+
+            if (fileInput.name.endsWith(".xlsx")) {
+                reader.readAsBinaryString(fileInput);
+            } else {
+                reader.readAsText(fileInput);
+            }
+        }
+
+        function processData(data) {
+            let time1 = document.getElementById("time1").value.trim();
+            let time2 = document.getElementById("time2").value.trim();
+
+            let dateWiseStocks = {};
+
+            data.forEach(row => {
+                let dateStr = row.date;
+                let stock = row.symbol;
+
+                if (!dateStr || !stock) return;
+
+                let dateParts = dateStr.split(" ");
+                if (dateParts.length < 2) return;
+
+                let date = dateParts[0]; // Extract date (DD-MM-YYYY)
+                let time = dateParts[1] + " " + dateParts[2]; // Extract time (HH:MM AM/PM)
+
+                if (!dateWiseStocks[date]) dateWiseStocks[date] = { time1: new Set(), time2: new Set() };
+
+                if (time === time1) {
+                    dateWiseStocks[date].time1.add(stock);
+                }
+                if (time === time2) {
+                    dateWiseStocks[date].time2.add(stock);
+                }
+            });
+
+            displayResults(dateWiseStocks);
+        }
+
+        function displayResults(dateWiseStocks) {
+            let resultTable = document.getElementById("resultTable");
+            resultTable.innerHTML = "";
+
+            Object.keys(dateWiseStocks).sort((a, b) => new Date(b.split("-").reverse().join("-")) - new Date(a.split("-").reverse().join("-"))).forEach(date => {
+                let time1Stocks = dateWiseStocks[date].time1;
+                let time2Stocks = dateWiseStocks[date].time2;
+
+                let differenceStocks = [...time1Stocks].filter(stock => !time2Stocks.has(stock));
+
+                if (differenceStocks.length > 0) {
+                    differenceStocks.forEach(stock => {
+                        let row = `<tr>
+                            <td>${date}</td>
+                            <td>${stock}</td>
+                        </tr>`;
+                        resultTable.innerHTML += row;
+                    });
+                }
+            });
+
+            if (resultTable.innerHTML === "") {
+                resultTable.innerHTML = `<tr><td colspan="2">No stocks found that are present at Time 1 but NOT at Time 2.</td></tr>`;
+            }
+        }
+    </script>
+</body>
+</html>
