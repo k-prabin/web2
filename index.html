@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Specific Times</title>
+    <title>Compare at times</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
@@ -12,18 +12,19 @@
     <input type="file" id="fileInput">
     <br><br>
     
-    <h3>Enter Two Specific Times (Format: HH:MM AM/PM)</h3>
-    <label>Time 1: <input type="text" id="time1" value="09:15 AM"></label>
-    <label>Time 2: <input type="text" id="time2" value="10:00 AM"></label><br><br>
+    <h3>Select a Date & Two Specific Times</h3>
+    <label>Date: <input type="date" id="selectedDate"></label><br><br>
+    <label>Time 1: <input type="time" id="time1"></label>
+    <label>Time 2: <input type="time" id="time2"></label><br><br>
 
     <button onclick="processFile()">Upload & Compare</button>
 
-    <h3>Stocks Present at Time 1 but NOT at Time 2</h3>
+    <h3>Present at Time 1 but NOT at Time 2</h3>
     <table border="1">
         <thead>
             <tr>
                 <th>Date</th>
-                <th>Stock Symbol</th>
+                <th>symbol</th>
             </tr>
         </thead>
         <tbody id="resultTable">
@@ -68,59 +69,61 @@
         }
 
         function processData(data) {
-            let time1 = document.getElementById("time1").value.trim();
-            let time2 = document.getElementById("time2").value.trim();
+            let selectedDate = document.getElementById("selectedDate").value;
+            let time1 = document.getElementById("time1").value;
+            let time2 = document.getElementById("time2").value;
 
-            let dateWiseStocks = {};
+            if (!selectedDate || !time1 || !time2) {
+                alert("Please select a valid date and times.");
+                return;
+            }
+
+            let stocksAtTime1 = new Set();
+            let stocksAtTime2 = new Set();
 
             data.forEach(row => {
-                let dateStr = row.date;
+                let dateTimeStr = row.date;
                 let stock = row.symbol;
 
-                if (!dateStr || !stock) return;
+                if (!dateTimeStr || !stock) return;
 
-                let dateParts = dateStr.split(" ");
-                if (dateParts.length < 2) return;
+                let dateTimeParts = dateTimeStr.split(" ");
+                if (dateTimeParts.length < 2) return;
 
-                let date = dateParts[0]; // Extract date (DD-MM-YYYY)
-                let time = dateParts[1] + " " + dateParts[2]; // Extract time (HH:MM AM/PM)
+                let date = dateTimeParts[0]; // Extract date (DD-MM-YYYY)
+                let time = dateTimeParts[1]; // Extract time (HH:MM)
 
-                if (!dateWiseStocks[date]) dateWiseStocks[date] = { time1: new Set(), time2: new Set() };
+                let formattedDate = date.split("-").reverse().join("-"); // Convert to YYYY-MM-DD
 
-                if (time === time1) {
-                    dateWiseStocks[date].time1.add(stock);
-                }
-                if (time === time2) {
-                    dateWiseStocks[date].time2.add(stock);
+                if (formattedDate === selectedDate) {
+                    if (time === time1) {
+                        stocksAtTime1.add(stock);
+                    }
+                    if (time === time2) {
+                        stocksAtTime2.add(stock);
+                    }
                 }
             });
 
-            displayResults(dateWiseStocks);
+            let differenceStocks = [...stocksAtTime1].filter(stock => !stocksAtTime2.has(stock));
+
+            displayResults(selectedDate, differenceStocks);
         }
 
-        function displayResults(dateWiseStocks) {
+        function displayResults(selectedDate, stocks) {
             let resultTable = document.getElementById("resultTable");
             resultTable.innerHTML = "";
 
-            Object.keys(dateWiseStocks).sort((a, b) => new Date(b.split("-").reverse().join("-")) - new Date(a.split("-").reverse().join("-"))).forEach(date => {
-                let time1Stocks = dateWiseStocks[date].time1;
-                let time2Stocks = dateWiseStocks[date].time2;
-
-                let differenceStocks = [...time1Stocks].filter(stock => !time2Stocks.has(stock));
-
-                if (differenceStocks.length > 0) {
-                    differenceStocks.forEach(stock => {
-                        let row = `<tr>
-                            <td>${date}</td>
-                            <td>${stock}</td>
-                        </tr>`;
-                        resultTable.innerHTML += row;
-                    });
-                }
-            });
-
-            if (resultTable.innerHTML === "") {
-                resultTable.innerHTML = `<tr><td colspan="2">No stocks found that are present at Time 1 but NOT at Time 2.</td></tr>`;
+            if (stocks.length > 0) {
+                stocks.forEach(stock => {
+                    let row = `<tr>
+                        <td>${selectedDate}</td>
+                        <td>${stock}</td>
+                    </tr>`;
+                    resultTable.innerHTML += row;
+                });
+            } else {
+                resultTable.innerHTML = `<tr><td colspan="2">Not found</td></tr>`;
             }
         }
     </script>
